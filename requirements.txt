@@ -3,3 +3,4 @@ torchaudio==2.7.1
 torchvision==0.22.1
 opencv-python==4.11.0.86
 scikit-learn==1.6.1
+pillow==11.1.0
