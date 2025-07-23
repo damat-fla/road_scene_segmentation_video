@@ -1,4 +1,6 @@
 from torch.utils.data import Dataset
+import torchvision.transforms as transforms
+from PIL import Image
 import cv2
 import os
 
@@ -30,14 +32,21 @@ class CamVidDataset(Dataset):
         image_path = os.path.join(self.images_folder, self.images[idx])
         mask_path = os.path.join(self.masks_folder, self.masks[idx])
 
-        image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.imread(image_path) 
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # shape (height, width, channels)
         mask = cv2.imread(mask_path)
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
 
         if self.image_transform:
-            image = self.image_transform(image)
+            image = Image.fromarray(image) # shape (width, height)
+            image = self.image_transform(image) # shape (channels, height, width)
+        else:
+            image = transforms.ToTensor()(image) # shape (channels, height, width)
+
         if self.mask_transform:
+            mask = Image.fromarray(mask)
             mask = self.mask_transform(mask)
+        else:
+            mask = transforms.ToTensor()(mask)
 
         return image, mask
