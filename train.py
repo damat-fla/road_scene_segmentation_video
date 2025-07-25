@@ -1,16 +1,19 @@
 import torch
+import numpy as np
 from torch import nn
 from tqdm import tqdm
 from models.unet import UNet
 from torchvision import transforms
-from utils.helper import get_device
 from torch.utils.data import DataLoader
 from datasets.camvid_dataset import CamVidDataset
+from utils.helper import get_device, save_checkpoint, compute_validation_loss
 
 
 device = get_device()
-N_EPOCHS = 3
+N_EPOCHS = 10
 BATCH_SIZE = 8
+checkpoint_dir = './checkpoints'
+save_every = 2  # Save every 2 epochs
 
 # ========== Dataset and DataLoader ==========
 w, h = 720, 960 # width and height of the images in the dataset
@@ -53,7 +56,7 @@ model.to(device)
 total_params = sum(p.numel() for p in model.parameters())
 trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f"Total params: {total_params}")
-print(f"Trainable params: {trainable_params}")
+print(f"Trainable params: {trainable_params} \n")
 
 
 
@@ -63,13 +66,19 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
 
 # ========== Training Loop ==========
-for epoch in range(N_EPOCHS):
-    
+
+best_val_loss = np.inf
+val_loss = np.inf
+
+for epoch in range(1, N_EPOCHS+1):
+
+    print(f"================================    Starting epoch {epoch}/{N_EPOCHS}      ========================")
+
     model.train()
     running_loss = 0
 
     # Using tqdm for progress bar and showing loss
-    loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{N_EPOCHS}", leave=False)
+    loop = tqdm(train_loader, desc=f"Epoch {epoch}/{N_EPOCHS}", leave=False)
     
     for images, masks in loop: # shape (BxCxHxW)
         images = images.to(device) 
@@ -84,8 +93,30 @@ for epoch in range(N_EPOCHS):
 
         running_loss += loss.item() * images.size(0) # loss.item() returns the mean loss over the batch
 
-        loop.set_postfix(loss=loss.item()) # update the progress bar with the current loss
+        loop.set_postfix(loss=loss.item(), val_loss=val_loss) # update the progress bar with the current loss
 
     epoch_loss = running_loss / len(train_loader.dataset) # average loss over the entire dataset
-    print(f"Epoch {epoch+1}/{N_EPOCHS}, Loss: {epoch_loss:.4f}")
+    val_loss = compute_validation_loss(model, val_loader, criterion, device)
+    
+    # Check whether the val_loss improved
+    if val_loss < best_val_loss:
+        print(f"Validation loss improved from {best_val_loss:.4f} to {val_loss:.4f}")
+        best_val_loss = val_loss
+        is_best = True
+
+    
+
+    # Saving the checkpoint
+    save_checkpoint(
+        model_name='unet',
+        checkpoint_dir=checkpoint_dir,
+        model=model,
+        optimizer=optimizer,
+        epoch=epoch,
+        loss=epoch_loss,
+        val_loss=val_loss if is_best else None, # Save also the best checkpoint every time the validation loss improves
+        save_every_n=save_every  # Save every 2 epoch. If None, save only the last model and the best.
+    )
+
+    print(f"Epoch {epoch}/{N_EPOCHS}, Loss: {epoch_loss:.4f}, Val_Loss = {val_loss:.4f} \n")
 print("Training complete.")
