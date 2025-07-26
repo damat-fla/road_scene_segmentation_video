@@ -1,4 +1,5 @@
 import torch
+import wandb
 import numpy as np
 from torch import nn
 from tqdm import tqdm
@@ -10,11 +11,27 @@ from utils.helper import get_device, save_checkpoint, compute_validation_loss
 
 
 device = get_device()
-N_EPOCHS = 10
+N_EPOCHS = 4
 BATCH_SIZE = 8
 checkpoint_dir = './checkpoints'
 save_every = 2  # Save every 2 epochs
 
+WANDB_USER = ""
+WANDB_PROJECT = "road_scene_segmentation_video"
+
+# Initialize Weights and Biases
+wandb.init(
+    project=WANDB_PROJECT,
+    entity=WANDB_USER,
+    config={
+        "epochs": N_EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": 1e-3,
+        "model": "UNet",
+        "dataset": "CamVid",
+        "device": str(device)
+    }
+)
 # ========== Dataset and DataLoader ==========
 w, h = 720, 960 # width and height of the images in the dataset
 
@@ -79,9 +96,9 @@ for epoch in range(1, N_EPOCHS+1):
 
     # Using tqdm for progress bar and showing loss
     loop = tqdm(train_loader, desc=f"Epoch {epoch}/{N_EPOCHS}", leave=False)
-    
-    for images, masks in loop: # shape (BxCxHxW)
-        images = images.to(device) 
+
+    for batch_idx, (images, masks) in enumerate(loop): # shape (BxCxHxW)
+        images = images.to(device)
         masks = masks.to(device)
 
         optimizer.zero_grad() # no gradient accumulation
@@ -94,6 +111,11 @@ for epoch in range(1, N_EPOCHS+1):
         running_loss += loss.item() * images.size(0) # loss.item() returns the mean loss over the batch
 
         loop.set_postfix(loss=loss.item(), val_loss=val_loss) # update the progress bar with the current loss
+
+        wandb.log({
+            "train_loss_batch": loss.item(),
+            "global_step": epoch * len(train_loader) + batch_idx
+        })
 
     epoch_loss = running_loss / len(train_loader.dataset) # average loss over the entire dataset
     
@@ -123,4 +145,12 @@ for epoch in range(1, N_EPOCHS+1):
     )
 
     print(f"Epoch {epoch}/{N_EPOCHS}, Loss: {epoch_loss:.4f}, Val_Loss = {val_loss:.4f} \n")
+    # Log the metrics to Weights and Biases
+    wandb.log({
+        "epoch": epoch,
+        "train_loss": epoch_loss,
+        "val_loss": val_loss,
+    })
+
+wandb.finish()  # Finish the Weights and Biases run
 print("Training complete.")
