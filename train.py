@@ -96,6 +96,8 @@ for epoch in range(1, N_EPOCHS+1):
         loop.set_postfix(loss=loss.item(), val_loss=val_loss) # update the progress bar with the current loss
 
     epoch_loss = running_loss / len(train_loader.dataset) # average loss over the entire dataset
+    
+    # Compute validation loss
     val_loss = compute_validation_loss(model, val_loader, criterion, device)
     
     # Check whether the val_loss improved
@@ -103,8 +105,10 @@ for epoch in range(1, N_EPOCHS+1):
         print(f"Validation loss improved from {best_val_loss:.4f} to {val_loss:.4f}")
         best_val_loss = val_loss
         is_best = True
+    else:
+        print(f"Validation loss did not improve: {val_loss:.4f} (best: {best_val_loss:.4f})")
+        is_best = False
 
-    
 
     # Saving the checkpoint
     save_checkpoint(

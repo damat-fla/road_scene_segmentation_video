@@ -11,11 +11,16 @@ class Conv_Block(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding='same')
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding='same')
+        self.norm1 = nn.BatchNorm2d(out_channels)
+        self.norm2 = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout2d(p=0.25)
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
-        x1 = self.relu(self.conv1(x))
-        x2 = self.relu(self.conv2(x1))
+        x1 = self.relu(self.norm1(self.conv1(x))) # conv -> batch_norm -> relu
+        x1 = self.dropout(x1)
+        x2 = self.relu(self.norm2(self.conv2(x1))) # conv -> batch_norm -> relu
+        x2 = self.dropout(x2) 
         return x2
 
 class Down_Block(nn.Module):
